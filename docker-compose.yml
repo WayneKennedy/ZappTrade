@@ -1,0 +1,57 @@
+version: '3'
+
+volumes:
+    zapp-stock-db:
+        
+services:
+    zapp-stock-db:
+        build: ./zapp-stock-db
+        image: atlay/zapp-stock-db
+        volumes:
+            - zapp-stock-db:/var/lib/postgresql/data
+        ports:
+            - 5432:5432
+    
+    zapp_stock-loader:
+        build: ./zapp-stock-loader
+        image: atlay/zapp-stock-loader
+        depends_on: 
+            - zapp-stock-db
+
+    zapp-stock-rest:
+        image: postgrest/postgrest
+        ports:
+            - "3000:3000"
+        links:
+            - zapp-stock-db:zapp-stock-db
+        environment:
+            # PGRST_DB_URI: postgres://app_user:password@db:5432/app_db
+     
+            PGRST_DB_URI: postgres://docker:docker@zapp-stock-db:5432/zapp_stock_db
+            PGRST_DB_SCHEMA: public
+            PGRST_DB_ANON_ROLE: docker #In production this role should not be the same as the one used for the connection
+        depends_on:
+            - zapp-stock-db
+    
+    zapp-stock-swagger:
+        image: swaggerapi/swagger-ui
+        ports:
+            - "8080:8080"
+        expose:
+            - "8080"
+        environment:
+            API_URL: http://localhost:3000/
+        depends_on:
+            - zapp-stock-rest
+            
+    zapp-stock-website:
+        build: ./zapp-stock-web
+        image: atlay/zapp-stock-web
+        volumes: 
+            - ./zapp-web/src:/var/www/html
+        ports: 
+            - 1337:80
+        depends_on:
+            - zapp-stock-rest
+
+            # docker run --name zapp-stock-db -v zapp-stock-db:/var/lib/postgresql/data -p 5432:5432 -d atlay/zapp-stock-db

@@ -1,10 +1,9 @@
-version: '3'
-
 volumes:
     zapp-stock-db:
         
 services:
     zapp-stock-db:
+        container_name: zapp-stock-db
         build: ./zapp-stock-db
         image: atlay/zapp-stock-db
         volumes:
@@ -13,13 +12,15 @@ services:
             - 5432:5432
     
     zapp_stock-loader:
+        container_name: zapp-stock-loader
         build: ./zapp-stock-loader
         image: atlay/zapp-stock-loader
-        depends_on: 
+        depends_on:
             - zapp-stock-db
 
     zapp-stock-rest:
-        image: postgrest/postgrest
+        container_name: zapp-stock-rest
+        image: postgrest/postgrest:v12.2.3
         ports:
             - "3000:3000"
         links:
@@ -34,7 +35,8 @@ services:
             - zapp-stock-db
     
     zapp-stock-swagger:
-        image: swaggerapi/swagger-ui
+        container_name: zapp-stock-swagger
+        image: swaggerapi/swagger-ui:v5.17.14
         ports:
             - "8080:8080"
         expose:
@@ -45,10 +47,11 @@ services:
             - zapp-stock-rest
             
     zapp-stock-website:
+        container_name: zapp-stock-website
         build: ./zapp-stock-web
         image: atlay/zapp-stock-web
-        volumes: 
-            - ./zapp-web/src:/var/www/html
+        volumes:
+            - ./zapp-stock-web/src:/var/www/html
         ports: 
             - 1337:80
         depends_on:

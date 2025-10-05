@@ -1,4 +1,6 @@
 psycopg2
 pytickersymbols
 pandas
-pandas_datareader
+yfinance
+setuptools
+pyyaml

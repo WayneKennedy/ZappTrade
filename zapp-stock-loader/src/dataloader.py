@@ -3,9 +3,8 @@ import re
 import psycopg2
 import datetime as dt
 import pandas as pd
-import pandas_datareader.data as web
+import yfinance as yf
 from pytickersymbols import PyTickerSymbols
-from datetime import date
 
 #Define our connection string
 conn_string = "host='zapp-stock-db' dbname='zapp_stock_db' user='docker' password='docker'"
@@ -16,14 +15,9 @@ stock_data = PyTickerSymbols()
 
 def clean_ticker(raw_ticker):
     ticker = re.sub(r'^[\W_]+|[\W_]+$', '', raw_ticker)
-    contains_period = False
-    for c in ticker:
-        if c == '.':
-            contains_period = True
-    if not contains_period:
+    if '.' not in ticker:
         return ticker + '.L'
-    else:
-        return ticker
+    return ticker
 
 def load_stocks():
     uk_stocks = stock_data.get_stocks_by_index('FTSE 100')
@@ -39,7 +33,6 @@ def load_stocks():
     for stock in uk_stocks:
         raw_ticker = stock['symbol']
         ticker = clean_ticker(raw_ticker)
-        #re.sub('[^A-Za-z0-9]+', '', raw_ticker) + '.L'
         name = stock['name']
         cursor.execute(sqlAddStock, (raw_ticker, 'FTSE 100', 'PyTickerSymbols', ticker, name))
 
@@ -64,8 +57,6 @@ def load_dailies():
     # For each, find last entry in daily table
     for t in tickers:
         ticker = t[0]
-        # print(sql)
-        # print (ticker)
         cursor.execute(sql, [ticker])
         daily = cursor.fetchall()
 
@@ -78,16 +69,29 @@ def load_dailies():
         if dateStart < dateEnd:
             print(f"Require data from {ticker} for dates [{dateStart}] to [{dateEnd}]")
 
-            # Get the data from Yahoo
+            # Get the data from Yahoo using yfinance
             try:
-                df = web.DataReader(ticker, 'yahoo', dateStart, dateEnd)
-                for row in df.itertuples():
-                    # print(row)
-                    cursor.execute(sqlDaily, (row[0].date(), ticker, row[1], row[2], row[3], row[4], row[5], row[6]))
+                stock = yf.Ticker(ticker)
+                df = stock.history(start=dateStart, end=dateEnd)
 
-                conn.commit()
+                if not df.empty:
+                    for index, row in df.iterrows():
+                        cursor.execute(sqlDaily, (
+                            index.date(),
+                            ticker,
+                            float(row['High']) if pd.notna(row['High']) else None,
+                            float(row['Low']) if pd.notna(row['Low']) else None,
+                            float(row['Open']) if pd.notna(row['Open']) else None,
+                            float(row['Close']) if pd.notna(row['Close']) else None,
+                            int(row['Volume']) if pd.notna(row['Volume']) else None,
+                            float(row['Close']) if pd.notna(row['Close']) else None
+                        ))
+                    conn.commit()
+                    print(f"Loaded {len(df)} records for {ticker}")
+                else:
+                    print(f"No data available for {ticker}")
             except Exception as ex:
-                print('Unable to get data for {}'.format(ticker))
+                print(f'Unable to get data for {ticker}: {ex}')
 
     cursor.close()
     conn.close()

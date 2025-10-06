@@ -7,6 +7,7 @@ services:
         container_name: zapp-stock-db
         build: ./zapp-stock-db
         image: atlay/zapp-stock-db
+        restart: unless-stopped
         volumes:
             - zapp-stock-db:/var/lib/postgresql/data
         ports:
@@ -16,19 +17,21 @@ services:
         container_name: zapp-stock-loader
         build: ./zapp-stock-loader
         image: atlay/zapp-stock-loader
+        restart: unless-stopped
         depends_on:
             - zapp-stock-db
 
     zapp-stock-rest:
         container_name: zapp-stock-rest
         image: postgrest/postgrest:v12.2.3
+        restart: unless-stopped
         ports:
             - "3000:3000"
         links:
             - zapp-stock-db:zapp-stock-db
         environment:
             # PGRST_DB_URI: postgres://app_user:password@db:5432/app_db
-     
+
             PGRST_DB_URI: postgres://docker:docker@zapp-stock-db:5432/zapp_stock_db
             PGRST_DB_SCHEMA: public
             PGRST_DB_ANON_ROLE: docker #In production this role should not be the same as the one used for the connection
@@ -38,6 +41,7 @@ services:
     zapp-stock-swagger:
         container_name: zapp-stock-swagger
         image: swaggerapi/swagger-ui:v5.17.14
+        restart: unless-stopped
         ports:
             - "8080:8080"
         expose:
@@ -51,6 +55,7 @@ services:
         container_name: zapp-stock-website
         build: ./zapp-stock-web
         image: atlay/zapp-stock-web
+        restart: unless-stopped
         volumes:
             - ./zapp-stock-web/src:/var/www/html
         ports:
@@ -61,6 +66,7 @@ services:
     n8n:
         container_name: n8n
         image: n8nio/n8n:latest
+        restart: unless-stopped
         ports:
             - "5678:5678"
         volumes:

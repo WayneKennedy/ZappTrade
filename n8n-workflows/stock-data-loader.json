@@ -1,0 +1,338 @@
+{
+  "name": "FTSE 100 Stock Data Loader",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/10 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ticker, yahoo_ticker FROM stocks ORDER BY ticker",
+        "options": {}
+      },
+      "id": "get-stock-list",
+      "name": "Get Stock List",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [450, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-zapp-stock-db",
+          "name": "ZappTrade PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ticker-assignment",
+              "name": "ticker",
+              "value": "={{ $json.yahoo_ticker }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extract-ticker",
+      "name": "Extract Ticker",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT date FROM daily WHERE ticker = '{{ $json.ticker }}' ORDER BY date DESC LIMIT 1",
+        "options": {}
+      },
+      "id": "get-last-date",
+      "name": "Get Last Date",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [850, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-zapp-stock-db",
+          "name": "ZappTrade PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "start-date-assignment",
+              "name": "startDate",
+              "value": "={{ $json.date ? new Date(new Date($json.date).getTime() + 86400000).toISOString().split('T')[0] : '2000-01-01' }}",
+              "type": "string"
+            },
+            {
+              "id": "end-date-assignment",
+              "name": "endDate",
+              "value": "={{ new Date().toISOString().split('T')[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "ticker-passthrough",
+              "name": "ticker",
+              "value": "={{ $('Extract Ticker').item.json.ticker }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "calculate-date-range",
+      "name": "Calculate Date Range",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.startDate }}",
+              "operation": "smaller",
+              "value2": "={{ $json.endDate }}"
+            }
+          ]
+        }
+      },
+      "id": "check-if-data-needed",
+      "name": "Check If Data Needed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://query1.finance.yahoo.com/v8/finance/chart/{{ $json.ticker }}",
+        "authentication": "none",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "period1",
+              "value": "={{ Math.floor(new Date($json.startDate).getTime() / 1000) }}"
+            },
+            {
+              "name": "period2",
+              "value": "={{ Math.floor(new Date($json.endDate).getTime() / 1000) }}"
+            },
+            {
+              "name": "interval",
+              "value": "1d"
+            },
+            {
+              "name": "events",
+              "value": "history"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "fetch-yahoo-data",
+      "name": "Fetch Yahoo Finance Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1450, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ticker = $input.first().json.ticker;\nconst result = $input.first().json;\n\nif (!result.chart || !result.chart.result || !result.chart.result[0]) {\n  return [];\n}\n\nconst data = result.chart.result[0];\nconst timestamps = data.timestamp || [];\nconst quotes = data.indicators.quote[0];\n\nconst records = [];\n\nfor (let i = 0; i < timestamps.length; i++) {\n  if (quotes.close[i] !== null) {\n    records.push({\n      date: new Date(timestamps[i] * 1000).toISOString().split('T')[0],\n      ticker: ticker,\n      high_price: quotes.high[i],\n      low_price: quotes.low[i],\n      open_price: quotes.open[i],\n      close_price: quotes.close[i],\n      volume: quotes.volume[i],\n      adj_close_price: quotes.close[i]\n    });\n  }\n}\n\nreturn records.map(record => ({ json: record }));"
+      },
+      "id": "transform-data",
+      "name": "Transform Yahoo Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1650, 200]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "daily",
+          "mode": "list",
+          "cachedResultName": "daily"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $json.date }}",
+            "ticker": "={{ $json.ticker }}",
+            "high_price": "={{ $json.high_price }}",
+            "low_price": "={{ $json.low_price }}",
+            "open_price": "={{ $json.open_price }}",
+            "close_price": "={{ $json.close_price }}",
+            "volume": "={{ $json.volume }}",
+            "adj_close_price": "={{ $json.adj_close_price }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "queryBatching": "transaction"
+        },
+        "onConflict": "doNothing"
+      },
+      "id": "insert-to-db",
+      "name": "Insert to Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1850, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-zapp-stock-db",
+          "name": "ZappTrade PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "no-data-needed",
+      "name": "No Data Needed",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1450, 400]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Stock List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Stock List": {
+      "main": [
+        [
+          {
+            "node": "Extract Ticker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Ticker": {
+      "main": [
+        [
+          {
+            "node": "Get Last Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Last Date": {
+      "main": [
+        [
+          {
+            "node": "Calculate Date Range",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Date Range": {
+      "main": [
+        [
+          {
+            "node": "Check If Data Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Data Needed": {
+      "main": [
+        [
+          {
+            "node": "Fetch Yahoo Finance Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Data Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Yahoo Finance Data": {
+      "main": [
+        [
+          {
+            "node": "Transform Yahoo Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform Yahoo Data": {
+      "main": [
+        [
+          {
+            "node": "Insert to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-10-05T20:00:00.000Z",
+  "versionId": "1"
+}

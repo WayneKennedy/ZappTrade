@@ -4,13 +4,14 @@ A containerized stock market data pipeline that fetches, stores, and visualizes 
 
 ## Architecture
 
-This project consists of 5 Docker services:
+This project consists of 6 Docker services:
 
 1. **zapp-stock-db** - TimescaleDB database for time-series stock data
 2. **zapp-stock-loader** - Python service that fetches FTSE 100 data from Yahoo Finance
-3. **zapp-stock-rest** - PostgREST API server for database access
-4. **zapp-stock-swagger** - Swagger UI for API documentation
-5. **zapp-stock-website** - Apache/PHP web frontend for data visualization
+3. **n8n** - Workflow automation alternative to Python loader
+4. **zapp-stock-rest** - PostgREST API server for database access
+5. **zapp-stock-swagger** - Swagger UI for API documentation
+6. **zapp-stock-website** - Apache/PHP web frontend for data visualization
 
 ## Prerequisites
 
@@ -34,6 +35,7 @@ docker compose up -d
    - Web Interface: http://localhost:1337
    - REST API: http://localhost:3000
    - API Documentation: http://localhost:8080
+   - n8n Workflow Automation: http://localhost:5678
    - Database: localhost:5432
 
 ## Services
@@ -57,6 +59,17 @@ docker compose up -d
   - Runs every 10 minutes
   - Performs incremental loads (only fetches missing data)
   - Loads historical data from 2000 onwards
+
+### n8n Workflow Automation (n8n)
+- **Technology:** n8n (latest)
+- **Port:** 5678
+- **Credentials:** admin/admin (⚠️ change for production)
+- **Functionality:**
+  - Alternative to Python data loader using visual workflows
+  - Same data fetching capabilities via HTTP requests to Yahoo Finance
+  - Runs on configurable schedule (default: every 10 minutes)
+  - Workflow stored as JSON in `/n8n-workflows/`
+  - See [n8n Setup Guide](n8n-workflows/SETUP.md) for configuration
 
 ### REST API (zapp-stock-rest)
 - **Technology:** PostgREST v12.2.3
@@ -189,6 +202,7 @@ curl "http://localhost:3000/daily?date=gte.2024-01-01&date=lte.2024-12-31"
 - [x] Migrate from deprecated pandas_datareader to yfinance
 - [x] Update to latest LTS versions (Python 3.12, PHP 8.3, PostgreSQL 16)
 - [x] Multi-architecture support (AMD64 and ARM64)
+- [x] Add n8n workflow automation as alternative data loader
 - [ ] Implement web frontend chart visualization
 - [ ] Add environment variable configuration
 - [ ] Implement authentication/authorization

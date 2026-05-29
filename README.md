@@ -1,5 +1,40 @@
 # ZappTrade
 
+> ## ⚠️ Legacy prototype — not carried forward
+>
+> **This repository is an archived prototype, retained only as an _expression of intent_.**
+> It will **not** be extended, refactored, or maintained. Do not build new work on top of it.
+>
+> The real ZappTrade is a **blank-sheet greenfield rewrite**, governed on TarkaFlow as the
+> **ZappTrade (ZTR)** project (org `zapp` / Zappfyre). The intent that this codebase expresses
+> has been mined and re-captured there as stakeholder **statements** and architectural **decisions**.
+>
+> **What ZTR is building** (broader than this prototype): an application to **compose Day Trading
+> strategies for real listed stocks** and **paper-trade them against historical _daily_ price
+> movements**. Daily granularity only — explicitly no minute/tick/high-frequency trading.
+>
+> **How this prototype maps to captured intent:**
+>
+> | This prototype expresses… | Captured as |
+> |---|---|
+> | Curated stock universe + metadata (was FTSE 100 only) | `ZTR-STMT-002` (generalized to multi-market) |
+> | Deep daily OHLCV + adjusted-close history since 2000 | `ZTR-STMT-003` |
+> | Free/public end-of-day data source (Yahoo via yfinance) | `ZTR-STMT-004` |
+> | Scheduled incremental refresh (fetch only missing days) | `ZTR-STMT-005` |
+> | Charting web frontend (started, never finished) | `ZTR-STMT-006` |
+> | _Not present in this code — forward intent only:_ strategy composition + paper trading | `ZTR-STMT-001` |
+> | _Not present in this code — forward intent only:_ multi-market currency/calendar normalization | `ZTR-STMT-007` |
+>
+> **Greenfield direction** (`ZTR-DECISION-001` / `-002`): Python 3.12 + FastAPI/Pydantic backend;
+> declarative JSON strategy spec; custom vectorized daily backtest/paper-trade engine; PostgreSQL +
+> TimescaleDB via SQLAlchemy 2.0 + Alembic; React + TypeScript + Vite frontend with TradingView
+> Lightweight Charts; hosted on k3s. This **drops** the prototype's PHP/Apache frontend, PostgREST,
+> standalone Swagger, and n8n loader.
+>
+> Everything below documents the **legacy prototype** for reference only.
+
+---
+
 A containerized stock market data pipeline that fetches, stores, and visualizes FTSE 100 stock data.
 
 ## Architecture

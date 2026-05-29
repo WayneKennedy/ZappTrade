@@ -1,6 +1,0 @@
-psycopg2
-pytickersymbols
-pandas
-yfinance
-setuptools
-pyyaml
